@@ -59,9 +59,32 @@ domain: "www.cloudflare.com"
 openssl rand -hex 16
 ```
 
-## Architecture
+## Project Structure
 
-See [PRD](../prd/github-trend-mtg.md) for detailed architecture.
+```
+mtg/
+├── cmd/mtg/           # Entry point
+├── internal/
+│   ├── config/        # Configuration parsing
+│   ├── logging/       # Logging setup
+│   ├── proxy/         # Proxy server core
+│   ├── mtproto/       # MTPROTO protocol
+│   ├── fronting/      # Domain fronting
+│   ├── faketls/       # FakeTLS obfuscation
+│   └── blocklist/     # IP blocklist
+├── configs/           # Sample configs
+└── README.md
+```
+
+## Development Progress
+
+- **Day 1**: ✅ Project setup, core structure, config, logging
+- **Day 2**: 🔄 MTPROTO protocol basics
+- **Day 3**: ⏳ Proxy server core
+- **Day 4**: ⏳ Domain fronting
+- **Day 5**: ⏳ FakeTLS & traffic obfuscation
+- **Day 6**: ⏳ Blocklist & security
+- **Day 7**: ⏳ Testing & documentation
 
 ## License
 
