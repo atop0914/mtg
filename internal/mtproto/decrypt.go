@@ -1,11 +1,6 @@
 package mtproto
 
-import (
-	"encoding/binary"
-	"errors"
-)
-
-var ErrInvalidMessage = errors.New("invalid message")
+import "encoding/binary"
 
 // Payload represents decoded MTPROTO message
 type Payload struct {
@@ -39,3 +34,7 @@ func EncodeMessage(authKeyID, msgID int64, data []byte) []byte {
 	copy(result[16:], data)
 	return result
 }
+
+var ErrInvalidMessage = errors.New("invalid message")
+
+import "errors"

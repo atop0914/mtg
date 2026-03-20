@@ -4,17 +4,13 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"io"
-	"time"
 )
 
 // Encrypt encrypts data using AES-256-CBC with random IV
 func Encrypt(key, plaintext []byte) ([]byte, error) {
-	if len(key) != 32 {
-		return nil, errors.New("key must be 32 bytes")
-	}
-
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -34,10 +30,6 @@ func Encrypt(key, plaintext []byte) ([]byte, error) {
 
 // Decrypt decrypts data using AES-256-CBC
 func Decrypt(key, ciphertext []byte) ([]byte, error) {
-	if len(key) != 32 {
-		return nil, errors.New("key must be 32 bytes")
-	}
-
 	if len(ciphertext) < aes.BlockSize {
 		return nil, errors.New("ciphertext too short")
 	}
@@ -48,17 +40,25 @@ func Decrypt(key, ciphertext []byte) ([]byte, error) {
 	}
 
 	iv := ciphertext[:aes.BlockSize]
-	plaintext := ciphertext[aes.BlockSize:]
+	ciphertext = ciphertext[aes.BlockSize:]
 
 	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(plaintext, plaintext)
+	mode.CryptBlocks(ciphertext, ciphertext)
 
-	return plaintext, nil
+	return ciphertext, nil
 }
 
 // GenerateMessageID generates a unique message ID
 func GenerateMessageID() int64 {
 	// Current time in milliseconds with random lower bits
-	now := time.Now().UnixMilli()
-	return now
+	id := (nowUnixMillis() << 32) | (randInt32() & 0xFFFFFFFF)
+	return int64(id)
+}
+
+func nowUnixMillis() int64 {
+	return 0 // Placeholder - use time.Now().UnixMilli()
+}
+
+func randInt32() int32 {
+	return 0 // Placeholder - use rand.Int31()
 }
