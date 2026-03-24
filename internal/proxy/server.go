@@ -2,141 +2,129 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
 	"net"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 	"time"
-
-	"github.com/atop0914/mtg/internal/config"
-	"github.com/rs/zerolog"
 )
 
-const (
-	// ReadTimeout is the maximum duration for reading the entire request
-	ReadTimeout = 10 * time.Second
-	// WriteTimeout is the maximum duration for writing the response
-	WriteTimeout = 10 * time.Second
-	// IdleTimeout is the maximum duration for waiting for the next request
-	IdleTimeout = 60 * time.Second
-)
+// Config holds proxy server configuration
+type Config struct {
+	BindAddr      string
+	Secret        string
+	MaxConns      int
+	ReadTimeout   time.Duration
+	WriteTimeout  time.Duration
+	BufferSize    int
+}
 
-// Server represents the MTPROTO proxy server
+// Server represents the MTG proxy server
 type Server struct {
-	cfg    *config.Config
-	logger zerolog.Logger
-	server *http.Server
+	cfg    Config
+	srv    *net.TCPListener
+	conns  map[string]*ClientConn
+	mu     sync.RWMutex
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-// NewServer creates a new proxy server instance
-func NewServer(cfg *config.Config, logger zerolog.Logger) *Server {
+// ClientConn represents an active client connection
+type ClientConn struct {
+	ID        string
+	RemoteAddr net.Addr
+	Created   time.Time
+	AuthKey   []byte
+}
+
+// NewServer creates a new proxy server
+func NewServer(cfg Config) *Server {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		cfg:    cfg,
-		logger: logger,
+		cfg:   cfg,
+		conns: make(map[string]*ClientConn),
+		ctx:   ctx,
+		cancel: cancel,
 	}
 }
 
-// Start starts the MTPROTO proxy server
+// Start starts the proxy server
 func (s *Server) Start() error {
-	addr := s.cfg.BindTo
-
-	tlsConfig := s.buildTLSConfig()
-
-	s.server = &http.Server{
-		Addr:         addr,
-		TLSConfig:    tlsConfig,
-		Handler:      s.handleRequest(),
-		ReadTimeout:  ReadTimeout,
-		WriteTimeout: WriteTimeout,
-		IdleTimeout:  IdleTimeout,
-	}
-
-	// Start graceful shutdown handler
-	go s.handleShutdown()
-
-	s.logger.Info().Str("bind", addr).Msg("Starting MTPROTO proxy server")
-
-	if tlsConfig != nil {
-		return s.server.ListenAndServeTLS("", "")
-	}
-	return s.server.ListenAndServe()
-}
-
-// buildTLSConfig builds TLS configuration from config
-func (s *Server) buildTLSConfig() *tls.Config {
-	if s.cfg.TLS.CertFile == "" || s.cfg.TLS.KeyFile == "" {
-		return nil
-	}
-
-	cert, err := tls.LoadX509KeyPair(s.cfg.TLS.CertFile, s.cfg.TLS.KeyFile)
+	addr, err := net.ResolveTCPAddr("tcp", s.cfg.BindAddr)
 	if err != nil {
-		s.logger.Fatal().Err(err).Msg("Failed to load TLS certificates")
-		return nil
+		return fmt.Errorf("resolve address: %w", err)
 	}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
+	s.srv, err = net.ListenTCP("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
 	}
-}
 
-// handleRequest returns the HTTP handler for MTPROTO connections
-func (s *Server) handleRequest() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.logger.Debug().
-			Str("remote", r.RemoteAddr).
-			Str("method", r.Method).
-			Str("url", r.URL.String()).
-			Msg("Received request")
+	fmt.Printf("Proxy server listening on %s\n", s.cfg.BindAddr)
 
-		// For MTPROTO, we handle the connection at TCP level
-		conn, _, err := w.(http.Hijacker).Hijack()
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to hijack connection")
-			return
-		}
-		defer conn.Close()
-
-		s.handleMTProtoConnection(conn)
-	})
-}
-
-// handleMTProtoConnection handles the MTPROTO protocol connection
-func (s *Server) handleMTProtoConnection(conn net.Conn) {
-	defer conn.Close()
-
-	s.logger.Debug().Msg("New MTPROTO connection")
-
-	// TODO: Implement MTPROTO protocol handling
-	// 1. Read and validate secret
-	// 2. Perform MTPROTO handshake
-	// 3. Handle Telegram protocol messages
-}
-
-// handleShutdown handles graceful server shutdown
-func (s *Server) handleShutdown() {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	<-sigChan
-	s.logger.Info().Msg("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := s.server.Shutdown(ctx); err != nil {
-		s.logger.Error().Err(err).Msg("Server shutdown failed")
-	}
-}
-
-// Stop gracefully stops the server
-func (s *Server) Stop() error {
-	if s.server != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		return s.server.Shutdown(ctx)
-	}
+	go s.acceptLoop()
 	return nil
 }
+
+// acceptLoop accepts new connections
+func (s *Server) acceptLoop() {
+	for {
+		conn, err := s.srv.AcceptTCP()
+		if err != nil {
+			select {
+			case <-s.ctx.Done():
+				return
+			default:
+				fmt.Printf("Accept error: %v\n", err)
+				continue
+			}
+		}
+
+		go s.handleConn(conn)
+	}
+}
+
+// handleConn handles a single client connection
+func (s *Server) handleConn(conn *net.TCPConn) {
+	defer conn.Close()
+
+	// Set timeouts
+	conn.SetReadDeadline(time.Now().Add(s.cfg.ReadTimeout))
+	conn.SetWriteDeadline(time.Now().Add(s.cfg.WriteTimeout))
+
+	// Read secret
+	secret := make([]byte, 32)
+	n, err := io.ReadFull(conn, secret)
+	if err != nil || n != 32 {
+		fmt.Println("Failed to read secret")
+		return
+	}
+
+	// Validate secret
+	if hex.EncodeToString(secret) != s.cfg.Secret {
+		fmt.Println("Invalid secret")
+		return
+	}
+
+	fmt.Println("Client connected:", conn.RemoteAddr())
+}
+
+// Stop stops the proxy server
+func (s *Server) Stop() {
+	s.cancel()
+	if s.srv != nil {
+		s.srv.Close()
+	}
+}
+
+// Stats returns connection statistics
+func (s *Server) Stats() (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.conns), nil
+}
+
+var ErrInvalidSecret = errors.New("invalid secret")
+var ErrMaxConnsReached = errors.New("maximum connections reached")
