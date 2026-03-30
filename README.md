@@ -235,4 +235,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - Telegram for the [MTPROTO protocol](https://core.telegram.org/mtproto) specification
-- [原项目地址](https://github.com/9dcc/MTG) 协议参考
+- [Official MTPROTO Proxy Documentation](https://core.telegram.org/mtproto/mtproto-proxy)
+- Inspired by various open source MTPROTO proxy implementations
