@@ -15,6 +15,7 @@ import (
 type Config struct {
 	BindAddr      string
 	Secret        string
+	Domain        string // Fronting domain for domain fronting
 	MaxConns      int
 	ReadTimeout   time.Duration
 	WriteTimeout  time.Duration

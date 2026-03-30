@@ -67,12 +67,11 @@ func (f *HTTPFronting) Dial(frontDomain, backendDomain string) (net.Conn, error)
 // BuildRequest builds an HTTP request with fronting
 func (f *HTTPFronting) BuildRequest(method, path, host string, body []byte) *http.Request {
 	req := &http.Request{
-		Method:     method,
-		URL:        &url.URL{Path: path},
-		Host:       host,
-		Header:     make(http.Header),
-		Body:       nil,
-		BodyLength: len(body),
+		Method: method,
+		URL:    &url.URL{Path: path},
+		Host:   host,
+		Header: make(http.Header),
+		Body:   io.NopCloser(strings.NewReader(string(body))),
 	}
 
 	if len(body) > 0 {

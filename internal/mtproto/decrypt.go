@@ -18,8 +18,8 @@ func DecodeMessage(data []byte) (*Payload, error) {
 		return nil, ErrInvalidMessage
 	}
 
-	authKeyID := binary.LittleEndian.Int64(data[0:8])
-	msgID := binary.LittleEndian.Int64(data[8:16])
+	authKeyID := int64(binary.LittleEndian.Uint64(data[0:8]))
+	msgID := int64(binary.LittleEndian.Uint64(data[8:16]))
 	msgData := data[16:]
 
 	return &Payload{

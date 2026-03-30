@@ -1,7 +1,6 @@
 package security
 
 import (
-	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
