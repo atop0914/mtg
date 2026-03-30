@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -61,7 +62,12 @@ func (h *Handler) validateSecret(conn *net.TCPConn) error {
 		return err
 	}
 
-	// TODO: implement actual secret validation
+	// Compare with server's configured secret
+	provided := hex.EncodeToString(secret)
+	if provided != h.server.cfg.Secret {
+		return ErrInvalidSecret
+	}
+
 	return nil
 }
 
