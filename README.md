@@ -61,7 +61,7 @@ Save the generated secret — you'll need it to configure the proxy and to share
 ### Configure
 
 ```bash
-cp configs/config.yaml config.yaml
+cp configs/config.yaml.example config.yaml
 ```
 
 Edit `config.yaml`:
@@ -126,15 +126,15 @@ Users can add this proxy directly in Telegram Settings > Data & Storage > Proxy 
 mtg/
 ├── cmd/mtg/              # Application entry point
 ├── internal/
-│   ├── config/           # Configuration parsing (Viper-based)
-│   ├── logging/         # Structured logging (Zerolog)
+│   ├── config/           # Configuration parsing (YAML)
+│   ├── logging/          # Structured logging
 │   ├── proxy/            # Core proxy server implementation
 │   ├── mtproto/          # MTPROTO protocol handshake & framing
 │   ├── fronting/         # Domain fronting (HTTP/HTTPS disguise)
 │   ├── faketls/          # FakeTLS traffic obfuscation
 │   └── security/         # IP blocklist management
 ├── configs/
-│   └── config.yaml       # Sample configuration
+│   └── config.yaml.example  # Sample configuration
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -151,6 +151,57 @@ mtg/
 | `tls.key-file` | No | TLS private key path |
 | `blocklist` | No | FireHOL-compatible blocklist URL |
 | `socks5` | No | SOCKS5 proxy address for chaining |
+
+## Deployment
+
+### Production Checklist
+
+- [ ] Use a strong secret (`openssl rand -hex 16`)
+- [ ] Choose a reliable fronting domain (Cloudflare, Google, etc.)
+- [ ] Enable TLS certificate for real HTTPS (recommended)
+- [ ] Set up blocklist to filter malicious IPs
+- [ ] Configure firewall to allow only needed ports
+- [ ] Use systemd for process management
+- [ ] Set up log rotation
+
+### Systemd Service Example
+
+```ini
+[Unit]
+Description=MTG MTPROTO Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=nobody
+ExecStart=/opt/mtg/mtg -c /opt/mtg/config.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Reverse Proxy (Optional)
+
+For additional layer, put behind nginx with real TLS:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-proxy.domain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8443;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
 
 ## Security Considerations
 

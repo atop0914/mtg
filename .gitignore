@@ -1,6 +1,6 @@
 # Binaries
 mtg
-*.exe
+mtg.exe
 *.exe~
 *.dll
 *.so
@@ -28,3 +28,7 @@ go.work
 # OS
 .DS_Store
 Thumbs.db
+
+# Config (contains secrets)
+config.yaml
+

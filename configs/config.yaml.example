@@ -1,0 +1,24 @@
+# MTG Configuration
+# MTPROTO Proxy for Telegram
+
+# Required: Secret key (32 bytes hex, generate with: openssl rand -hex 16)
+secret: "your-secret-here"
+
+# Required: Address to bind to (port 443 recommended for less suspicion)
+bind-to: ":443"
+
+# Required: Domain for domain fronting (your traffic appears to connect here)
+# Use a CDN domain that is allowed in your region (e.g., www.cloudflare.com)
+domain: "www.cloudflare.com"
+
+# TLS certificate (optional - enables real HTTPS)
+# Without this, FakeTLS obfuscation is still active but no real TLS cert
+# tls:
+#   cert-file: "cert.pem"
+#   key-file: "key.pem"
+
+# IP Blocklist (optional) - FireHOL format, blocks known malicious IPs
+# blocklist: "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+
+# SOCKS5 proxy (optional) - chain through another proxy for more anonymity
+# socks5: "127.0.0.1:1080"
