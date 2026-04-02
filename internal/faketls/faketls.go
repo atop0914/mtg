@@ -70,31 +70,18 @@ func (f *FakeTLS) ClientHello() ([]byte, error) {
 
 	// SNI extension
 	buf.Write([]byte{0x00, 0x00}) // type: server_name
-	sniTypeLenPos := buf.Len()    // position of length field for SNI data
-	buf.Write([]byte{0x00, 0x00}) // length placeholder (2 bytes after this)
-	buf.WriteByte(0x00)           // name_type: host_name
-	buf.Write([]byte{0x00, 0x00}) // name length placeholder (2 bytes)
-	nameStrPos := buf.Len()       // position where "example.com" starts
+	buf.Write([]byte{0x00, 0x00}) // length (placeholder)
+	sniLenPos := buf.Len()
+	buf.Write([]byte{0x00, 0x00}) // server_name list length
+	buf.WriteByte(0x00) // name_type: host_name
+	buf.Write([]byte{0x00, 0x00}) // name length (placeholder)
+	nameLen := buf.Len()
 	buf.WriteString("example.com") // SNI name
 
-	// Calculate lengths
-	nameLen := len("example.com") // 11 bytes
-	sniDataLen := 1 + 2 + nameLen  // name_type(1) + name_len(2) + name_str
-
-	// ALPN extension (for HTTP/2)
-	buf.Write([]byte{0x00, 0x10}) // type: alpn
-	buf.Write([]byte{0x00, 0x00}) // length placeholder
-	buf.Write([]byte{0x00, 0x02}) // protocols length
-	buf.WriteString("h2")
-	alpnLen := 5 // 2 (type) + 2 (len) + 1 (proto len) + 2 ("h2")
-
 	// Fill lengths
-	binary.BigEndian.PutUint16(buf.Bytes()[sniTypeLenPos:], uint16(sniDataLen))
-	binary.BigEndian.PutUint16(buf.Bytes()[nameStrPos-2:], uint16(nameLen))
-	binary.BigEndian.PutUint16(buf.Bytes()[extLenPos:], uint16(sniDataLen+alpnLen))
-
-	// Fill ALPN length
-	binary.BigEndian.PutUint16(buf.Bytes()[buf.Len()-4:], uint16(3)) // 1 + 2 for "h2"
+	binary.BigEndian.PutUint16(buf.Bytes()[sniLenPos:], uint16(nameLen-sniLenPos-2))
+	binary.BigEndian.PutUint16(buf.Bytes()[nameLen-2:], uint16(nameLen-nameLenPos-2))
+	binary.BigEndian.PutUint16(buf.Bytes()[extLenPos:], uint16(nameLen-extLenPos-2))
 
 	// ALPN extension (for HTTP/2)
 	buf.Write([]byte{0x00, 0x10}) // type: alpn
